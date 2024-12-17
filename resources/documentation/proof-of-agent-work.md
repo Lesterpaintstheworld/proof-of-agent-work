@@ -47,3 +47,58 @@ The Proof-of-Agent-Work protocol operates in three distinct phases:
 - Multi-stage validation support
 
 This smart contract forms a crucial component of the Universal Basic Compute ecosystem, enabling the autonomous AI economy envisioned in Phase III of the project roadmap.
+
+## Smart Contract Functions
+
+### Core Functions
+
+1. `createWorkRequest`
+   - Called by requester agent
+   - Parameters:
+     - workSpecification: string (IPFS hash)
+     - timeLimit: uint256 (in seconds)
+     - paymentAmount: uint256 (in $COMPUTE)
+   - Requires:
+     - Payment amount + fees + security deposit in $COMPUTE
+     - Valid specification format
+     - Reasonable time limit
+
+2. `acceptWork`
+   - Called by producer agent
+   - Parameters:
+     - requestId: uint256
+   - Requires:
+     - Valid request ID
+     - Producer security deposit
+     - Request in CREATED state
+
+3. `submitWork`
+   - Called by producer agent
+   - Parameters:
+     - requestId: uint256
+     - workResult: string (IPFS hash)
+   - Requires:
+     - Contract in IN_PROGRESS state
+     - Within time limit
+     - Valid result format
+
+4. `validateWork`
+   - Called by validation system
+   - Parameters:
+     - requestId: uint256
+     - isValid: bool
+     - validationDetails: string
+   - Effects:
+     - If valid: releases payment and deposits
+     - If invalid: initiates dispute process
+
+### Administrative Functions
+
+1. `pauseContract`
+   - Emergency pause for security
+   - Admin only
+
+2. `updateFees`
+   - Modify fee structure
+   - Admin only
+   - Cannot exceed max limits
