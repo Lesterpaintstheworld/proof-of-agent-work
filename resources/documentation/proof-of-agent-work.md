@@ -65,43 +65,51 @@ enum WorkState {
 }
 ```
 
-### Structs
+### Program State
 
-```solidity
-struct WorkRequest {
-    address requester;
-    address producer;
-    uint256 paymentAmount;
-    uint256 requesterDeposit;
-    uint256 producerDeposit;
-    uint256 timeLimit;
-    uint256 createdAt;
-    string specificationHash;
-    string resultHash;
-    WorkState state;
-    bool isDisputed;
+```rust
+#[derive(BorshSerialize, BorshDeserialize, Clone)]
+pub struct WorkRequest {
+    pub requester: Pubkey,
+    pub producer: Pubkey,
+    pub payment_amount: u64,
+    pub requester_deposit: u64,
+    pub producer_deposit: u64,
+    pub time_limit: i64,
+    pub created_at: i64,
+    pub specification_hash: String,
+    pub result_hash: String,
+    pub state: WorkState,
+    pub is_disputed: bool,
 }
-```
 
-### State Variables
+#[account]
+pub struct ProgramState {
+    pub next_request_id: u64,
+    pub base_fee_percent: u16,     // 200 = 2%
+    pub requester_deposit_percent: u16, // 500 = 5%
+    pub producer_deposit_percent: u16,  // 200 = 2%
+    pub treasury: Pubkey,
+    pub validator: Pubkey,
+    pub paused: bool,
+    pub compute_token_mint: Pubkey,
+}
 
-```solidity
-// Core storage
-mapping(uint256 => WorkRequest) public workRequests;
-uint256 public nextRequestId;
-
-// Protocol configuration
-uint256 public baseFeePercent = 200; // 2% (basis points)
-uint256 public requesterDepositPercent = 500; // 5%
-uint256 public producerDepositPercent = 200; // 2%
-
-// Protocol addresses
-address public treasury;
-address public validator;
-bool public paused;
-
-// Token interface
-IERC20 public computeToken;
+// Initialize with default values
+impl Default for ProgramState {
+    fn default() -> Self {
+        Self {
+            next_request_id: 0,
+            base_fee_percent: 200,
+            requester_deposit_percent: 500, 
+            producer_deposit_percent: 200,
+            treasury: Pubkey::default(),
+            validator: Pubkey::default(),
+            paused: false,
+            compute_token_mint: Pubkey::default(),
+        }
+    }
+}
 ```
 
 ### Events
@@ -138,27 +146,79 @@ event WorkDisputed(
 
 ## Smart Contract Functions
 
-### Core Functions
+### Program Instructions
 
-1. `createWorkRequest`
-   - Called by requester agent
-   - Parameters:
-     - workSpecification: string (IPFS hash)
-     - timeLimit: uint256 (in seconds)
-     - paymentAmount: uint256 (in $COMPUTE)
-   - Requires:
-     - Payment amount + fees + security deposit in $COMPUTE
-     - Valid specification format
-     - Reasonable time limit
+```rust
+#[program]
+pub mod proof_of_agent_work {
+    use super::*;
 
-2. `acceptWork`
-   - Called by producer agent
-   - Parameters:
-     - requestId: uint256
-   - Requires:
-     - Valid request ID
-     - Producer security deposit
-     - Request in CREATED state
+    pub fn create_work_request(
+        ctx: Context<CreateWorkRequest>,
+        work_specification: String,
+        time_limit: i64,
+        payment_amount: u64,
+    ) -> Result<()> {
+        // Validate inputs
+        require!(time_limit > 0, ErrorCode::InvalidTimeLimit);
+        require!(payment_amount > 0, ErrorCode::InvalidPaymentAmount);
+        
+        // Calculate deposits and fees
+        let state = &ctx.accounts.program_state;
+        let total_required = calculate_total_required(
+            payment_amount,
+            state.base_fee_percent,
+            state.requester_deposit_percent
+        );
+
+        // Transfer tokens to program account
+        token::transfer(
+            ctx.accounts.transfer_context(),
+            total_required
+        )?;
+
+        // Create work request
+        let work_request = &mut ctx.accounts.work_request;
+        work_request.requester = ctx.accounts.requester.key();
+        work_request.payment_amount = payment_amount;
+        work_request.time_limit = time_limit;
+        work_request.specification_hash = work_specification;
+        work_request.state = WorkState::Created;
+
+        Ok(())
+    }
+
+    pub fn accept_work(
+        ctx: Context<AcceptWork>,
+        request_id: u64
+    ) -> Result<()> {
+        // Validate work request exists and is in CREATED state
+        let work_request = &mut ctx.accounts.work_request;
+        require!(
+            work_request.state == WorkState::Created,
+            ErrorCode::InvalidWorkState
+        );
+
+        // Transfer producer deposit
+        let state = &ctx.accounts.program_state;
+        let deposit = calculate_producer_deposit(
+            work_request.payment_amount,
+            state.producer_deposit_percent
+        );
+
+        token::transfer(
+            ctx.accounts.transfer_context(),
+            deposit
+        )?;
+
+        // Update work request
+        work_request.producer = ctx.accounts.producer.key();
+        work_request.state = WorkState::Accepted;
+
+        Ok(())
+    }
+}
+```
 
 3. `submitWork`
    - Called by producer agent
