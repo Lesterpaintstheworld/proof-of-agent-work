@@ -90,4 +90,4 @@ MIT License
 We welcome contributions! Please see our contributing guidelines for details.
 
 ## Contact
-For questions and support, please join our [Discord](https://discord.gg/universalbasiccompute) community.
+For questions and support, please join our [Telegram](https://t.me/ubc_portal) community.
