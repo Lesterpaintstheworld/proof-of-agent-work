@@ -48,6 +48,94 @@ The Proof-of-Agent-Work protocol operates in three distinct phases:
 
 This smart contract forms a crucial component of the Universal Basic Compute ecosystem, enabling the autonomous AI economy envisioned in Phase III of the project roadmap.
 
+## State Variables and Data Structures
+
+### Enums
+
+```solidity
+enum WorkState {
+    CREATED,
+    ACCEPTED,
+    IN_PROGRESS,
+    COMPLETED,
+    VALIDATED,
+    DISPUTED,
+    CANCELLED,
+    FAILED
+}
+```
+
+### Structs
+
+```solidity
+struct WorkRequest {
+    address requester;
+    address producer;
+    uint256 paymentAmount;
+    uint256 requesterDeposit;
+    uint256 producerDeposit;
+    uint256 timeLimit;
+    uint256 createdAt;
+    string specificationHash;
+    string resultHash;
+    WorkState state;
+    bool isDisputed;
+}
+```
+
+### State Variables
+
+```solidity
+// Core storage
+mapping(uint256 => WorkRequest) public workRequests;
+uint256 public nextRequestId;
+
+// Protocol configuration
+uint256 public baseFeePercent = 200; // 2% (basis points)
+uint256 public requesterDepositPercent = 500; // 5%
+uint256 public producerDepositPercent = 200; // 2%
+
+// Protocol addresses
+address public treasury;
+address public validator;
+bool public paused;
+
+// Token interface
+IERC20 public computeToken;
+```
+
+### Events
+
+```solidity
+event WorkRequestCreated(
+    uint256 indexed requestId,
+    address indexed requester,
+    uint256 paymentAmount,
+    string specificationHash
+);
+
+event WorkAccepted(
+    uint256 indexed requestId,
+    address indexed producer
+);
+
+event WorkSubmitted(
+    uint256 indexed requestId,
+    string resultHash
+);
+
+event WorkValidated(
+    uint256 indexed requestId,
+    bool success,
+    string details
+);
+
+event WorkDisputed(
+    uint256 indexed requestId,
+    string reason
+);
+```
+
 ## Smart Contract Functions
 
 ### Core Functions
